@@ -1,11 +1,11 @@
-
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint, TensorBoard
 #Part-1
 #importing training set
-dataset_train = pd.read_csv("training_set.csv")
-dataset_train.dropna(inplace=True)
+dataset_train = pd.read_csv("data till sept.csv")
+dataset_train['Shares Traded'] = dataset_train['Shares Traded'].fillna((dataset_train['Shares Traded'].mean()))
 training_set = dataset_train.iloc[:,1:6].values
 
 
@@ -13,13 +13,16 @@ training_set = dataset_train.iloc[:,1:6].values
 from sklearn.preprocessing import MinMaxScaler
 sc = MinMaxScaler()
 trainingset_scaled = sc.fit_transform(training_set)
+
+sc_predict = MinMaxScaler()
+trainingset_scaled_predict=sc_predict.fit_transform(training_set[:,0:1])
  
-#creating a datstructure with 60 timesteps and 1 output.
-#60 timesteps means that the at any time t the rnn with look at the trend from 60 days back
+#creating a datstructure with 50 timesteps and 1 output.
+#50 timesteps means that the at any time t the rnn with look at the trend from 50 days back
 x_train=[]
 y_train=[]
-for i in range(60,5373):
-    x_train.append(trainingset_scaled[i-60:i,:])
+for i in range(50,5411):
+    x_train.append(trainingset_scaled[i-50:i,:])
     y_train.append(trainingset_scaled[i,0])
 x_train,y_train = np.array(x_train),np.array(y_train)  
 
@@ -67,7 +70,10 @@ regressor.add(Dense(units = 1))
 regressor.compile(optimizer = 'adam',loss="mean_squared_error")
 
 #fitting the rnn to the training set
-regressor.fit(x_train,y_train,epochs=20, batch_size =32)
+es = EarlyStopping(monitor='val_loss', min_delta=1e-10, patience=10, verbose=1)
+rlr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, verbose=1)
+tb = TensorBoard('logs')
+regressor.fit(x_train,y_train,epochs=10,callbacks=[es, rlr, tb], batch_size =32)
 
 #Part-3 Making the predictions and visualising the results
 dataset_test = pd.read_csv("test_set.csv")
@@ -76,12 +82,12 @@ real_stock_price = dataset_test.iloc[:,1:2].values
 #for vertical concatenation use axis =0
 parameters=['Open','High','Low','Close','Shares Traded']
 dataset_total = pd.concat((dataset_train[parameters],dataset_test[parameters]),axis=0)
-inputs = dataset_total[len(dataset_total)-len(dataset_test)-60:].values
+inputs = dataset_total[len(dataset_total)-len(dataset_test)-50:].values
 inputs=inputs.reshape(-1,5)
 inputs = sc.transform(inputs)
 x_test=[]
-for i in range(60,78):
-    x_test.append(inputs[i-60:i,:])
+for i in range(50,68):
+    x_test.append(inputs[i-50:i,:])
 x_test = np.array(x_test)
 x_test = np.reshape(x_test,(x_test.shape[0],x_test.shape[1],5))
 predicted_stock_price=regressor.predict(x_test)
